@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rainy Attic — Page Normalizer</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Mono:wght@400;500&family=Lora:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root {
+    --ink: #1a1209;
+    --paper: #fdf6e8;
+    --aged: #f0e4c4;
+    --border: #c9b990;
+    --accent: #8b3a1a;
+    --green: #2d7a4a;
+    --green-bg: #eaf7f0;
+    --warn: #b06820;
+    --warn-bg: #fef3e2;
+    --muted: #9c8a6e;
+    --mono: 'DM Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--aged);
+    color: var(--ink);
+    font-family: 'Lora', Georgia, serif;
+    min-height: 100vh;
+  }
+
+  header {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 24px 32px 20px;
+    border-bottom: 4px double var(--accent);
+    display: flex;
+    align-items: baseline;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+
+  header h1 {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-size: 1.6em;
+    white-space: nowrap;
+  }
+
+  header .tagline {
+    font-size: 0.75em;
+    opacity: 0.5;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .main-layout {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    min-height: calc(100vh - 80px);
+  }
+
+  /* ---- LEFT PANEL ---- */
+  .left-panel {
+    background: var(--paper);
+    border-right: 2px solid var(--border);
+    padding: 24px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    overflow-y: auto;
+  }
+
+  .panel-section h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.9em;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* Drop zone */
+  .drop-zone {
+    border: 2.5px dashed var(--border);
+    border-radius: 8px;
+    padding: 28px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--aged);
+  }
+  .drop-zone:hover, .drop-zone.dragover {
+    border-color: var(--accent);
+    background: #fdf0e0;
+  }
+  .drop-zone .drop-icon { font-size: 2em; margin-bottom: 8px; }
+  .drop-zone .drop-text {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-size: 0.95em;
+    color: var(--ink);
+    margin-bottom: 4px;
+  }
+  .drop-zone .drop-sub { font-size: 0.75em; color: var(--muted); }
+  #fileInput { display: none; }
+
+  /* Settings */
+  .setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    gap: 8px;
+  }
+
+  .setting-label {
+    font-size: 0.82em;
+    font-weight: 600;
+    color: var(--ink);
+    flex: 1;
+  }
+
+  .setting-sub {
+    font-size: 0.72em;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  input[type="number"] {
+    width: 72px;
+    padding: 5px 8px;
+    border: 1.5px solid var(--border);
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 0.85em;
+    background: var(--paper);
+    color: var(--ink);
+    text-align: center;
+  }
+  input[type="number"]:focus { outline: none; border-color: var(--accent); }
+
+  .dim-inputs { display: flex; align-items: center; gap: 6px; }
+  .dim-x { font-size: 0.8em; color: var(--muted); font-family: var(--mono); }
+
+  select {
+    padding: 5px 8px;
+    border: 1.5px solid var(--border);
+    border-radius: 4px;
+    font-family: 'Lora', serif;
+    font-size: 0.82em;
+    background: var(--paper);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  select:focus { outline: none; border-color: var(--accent); }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .toggle {
+    position: relative;
+    width: 38px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider {
+    position: absolute; inset: 0;
+    background: #ccc; border-radius: 20px; cursor: pointer;
+    transition: 0.2s;
+  }
+  .toggle-slider:before {
+    content: ''; position: absolute;
+    width: 14px; height: 14px; left: 3px; top: 3px;
+    background: white; border-radius: 50%; transition: 0.2s;
+  }
+  .toggle input:checked + .toggle-slider { background: var(--green); }
+  .toggle input:checked + .toggle-slider:before { transform: translateX(18px); }
+
+  .toggle-label { font-size: 0.82em; color: var(--ink); }
+
+  /* Color input */
+  .color-row {
+    display: flex; align-items: center; gap: 8px;
+  }
+  input[type="color"] {
+    width: 32px; height: 28px;
+    border: 1.5px solid var(--border); border-radius: 4px;
+    cursor: pointer; padding: 2px; background: var(--paper);
+  }
+  .color-hex {
+    font-family: var(--mono); font-size: 0.8em; color: var(--muted);
+  }
+
+  /* Info box */
+  .info-box {
+    background: var(--warn-bg);
+    border: 1px solid var(--warn);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 0.78em;
+    line-height: 1.6;
+    color: #7a4a0a;
+  }
+  .info-box b { color: var(--warn); }
+
+  /* Action buttons */
+  .btn {
+    display: block; width: 100%;
+    padding: 10px 16px;
+    border: none; border-radius: 6px;
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-size: 0.95em;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+  }
+  .btn-primary {
+    background: var(--ink); color: var(--paper);
+  }
+  .btn-primary:hover { background: #333; }
+  .btn-primary:disabled { background: #aaa; cursor: not-allowed; }
+
+  .btn-secondary {
+    background: var(--paper); color: var(--ink);
+    border: 1.5px solid var(--border);
+    margin-top: 8px;
+  }
+  .btn-secondary:hover { background: var(--aged); }
+  .btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Queue list */
+  .queue-list {
+    display: flex; flex-direction: column; gap: 4px;
+    max-height: 200px; overflow-y: auto;
+  }
+  .queue-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 8px; border-radius: 4px;
+    background: var(--aged); font-size: 0.78em;
+    border: 1px solid var(--border);
+  }
+  .queue-item.processed { background: var(--green-bg); border-color: var(--green); }
+  .queue-item .qi-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); }
+  .queue-item .qi-size { color: var(--muted); white-space: nowrap; }
+  .qi-status { font-size: 0.85em; }
+
+  /* ---- RIGHT PANEL ---- */
+  .right-panel {
+    padding: 24px;
+    overflow-y: auto;
+  }
+
+  .preview-area {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 400px;
+    color: var(--muted);
+    text-align: center;
+    gap: 12px;
+  }
+  .empty-state .es-icon { font-size: 3em; opacity: 0.3; }
+  .empty-state h3 {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-size: 1.1em;
+    opacity: 0.5;
+  }
+  .empty-state p { font-size: 0.8em; opacity: 0.4; max-width: 280px; line-height: 1.6; }
+
+  /* Preview card */
+  .preview-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .preview-card {
+    background: var(--paper);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .preview-card-header {
+    padding: 8px 12px;
+    background: var(--aged);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .preview-card-header .pch-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.8em;
+    font-weight: 700;
+  }
+
+  .preview-card-header .pch-size {
+    font-family: var(--mono);
+    font-size: 0.72em;
+    color: var(--muted);
+  }
+
+  .preview-canvas-wrap {
+    padding: 12px;
+    background: #888;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 220px;
+  }
+
+  .preview-canvas-wrap canvas {
+    max-width: 100%;
+    max-height: 280px;
+    width: auto;
+    height: auto;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+  }
+
+  /* Stats strip */
+  .stats-strip {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+
+  .stat-badge {
+    padding: 4px 10px;
+    border-radius: 14px;
+    font-size: 0.75em;
+    font-family: var(--mono);
+    font-weight: 500;
+  }
+  .sb-neutral { background: var(--aged); color: var(--ink); border: 1px solid var(--border); }
+  .sb-ok { background: var(--green-bg); color: var(--green); border: 1px solid var(--green); }
+  .sb-warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); }
+
+  /* Diff indicator */
+  .diff-bar {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    font-size: 0.75em;
+    color: var(--muted);
+    padding: 0 12px 10px;
+    font-family: var(--mono);
+  }
+  .diff-pill {
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--green-bg);
+    color: var(--green);
+    border: 1px solid var(--green);
+    font-size: 0.9em;
+  }
+  .diff-pill.changed { background: var(--warn-bg); color: var(--warn); border-color: var(--warn); }
+
+  /* Results area */
+  .results-section {
+    background: var(--paper);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .results-header {
+    padding: 12px 16px;
+    background: var(--ink);
+    color: var(--paper);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .results-header h3 {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-size: 0.95em;
+  }
+
+  .results-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 1px;
+    background: var(--border);
+  }
+
+  .result-thumb-card {
+    background: var(--paper);
+    padding: 8px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .result-thumb-card:hover { background: var(--aged); }
+
+  .result-thumb-card img {
+    width: 100%;
+    height: auto;
+    display: block;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    margin-bottom: 4px;
+  }
+
+  .result-thumb-card .rtc-name {
+    font-size: 0.72em;
+    font-family: var(--mono);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--ink);
+  }
+  .result-thumb-card .rtc-size {
+    font-size: 0.65em;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+
+  /* Download all button */
+  .download-all-wrap {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    background: var(--aged);
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .btn-download {
+    padding: 8px 20px;
+    background: var(--green);
+    color: white;
+    border: none;
+    border-radius: 5px;
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-size: 0.9em;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn-download:hover { background: #235c38; }
+  .btn-download:disabled { background: #aaa; cursor: not-allowed; }
+
+  .dl-count { font-size: 0.8em; color: var(--muted); font-family: var(--mono); }
+
+  /* Progress */
+  .progress-wrap {
+    margin-top: 4px;
+  }
+  .progress-bar {
+    height: 5px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--green);
+    transition: width 0.2s;
+    width: 0%;
+  }
+  .progress-text {
+    font-size: 0.72em;
+    color: var(--muted);
+    font-family: var(--mono);
+    margin-top: 3px;
+  }
+
+  /* Modal */
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--paper);
+    border-radius: 10px;
+    padding: 20px;
+    max-width: 700px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    border: 2px solid var(--border);
+  }
+  .modal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+  }
+  .modal-header h3 { font-family: 'Playfair Display', serif; font-style: italic; }
+  .modal-close {
+    background: none; border: none; font-size: 1.2em; cursor: pointer; color: var(--muted);
+  }
+  .modal-close:hover { color: var(--ink); }
+  .modal img { max-width: 100%; height: auto; display: block; border: 1px solid var(--border); border-radius: 4px; }
+  .modal-info { margin-top: 10px; font-size: 0.8em; color: var(--muted); display: flex; gap: 12px; font-family: var(--mono); }
+
+  @media (max-width: 800px) {
+    .main-layout { grid-template-columns: 1fr; }
+    .left-panel { border-right: none; border-bottom: 2px solid var(--border); }
+    .preview-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Page Normalizer</h1>
+  <span class="tagline">Rainy Attic Chronicles · Coloring Book Build Tool</span>
+</header>
+
+<div class="main-layout">
+
+  <!-- LEFT PANEL -->
+  <div class="left-panel">
+
+    <!-- Drop Zone -->
+    <div class="panel-section">
+      <h2>1 · Load Images</h2>
+      <div class="drop-zone" id="dropZone">
+        <div class="drop-icon">🖼</div>
+        <div class="drop-text">Drop pages here</div>
+        <div class="drop-sub">or click to browse · PNG, JPG, WEBP · batch OK</div>
+      </div>
+      <input type="file" id="fileInput" accept="image/*" multiple>
+    </div>
+
+    <!-- Queue -->
+    <div class="panel-section" id="queueSection" style="display:none">
+      <h2>Queue <span id="queueCount" style="font-family:var(--mono);font-size:0.85em;color:var(--muted)"></span></h2>
+      <div class="queue-list" id="queueList"></div>
+      <div class="progress-wrap" id="progressWrap" style="display:none">
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="progress-text" id="progressText">Processing...</div>
+      </div>
+    </div>
+
+    <!-- Settings -->
+    <div class="panel-section">
+      <h2>2 · Target Size</h2>
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Target Dimensions</div>
+          <div class="setting-sub">Standard coloring book page</div>
+        </div>
+        <div class="dim-inputs">
+          <input type="number" id="targetW" value="1312" min="100" max="8000">
+          <span class="dim-x">×</span>
+          <input type="number" id="targetH" value="1199" min="100" max="8000">
+        </div>
+      </div>
+
+      <div class="quick-sizes" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+        <button onclick="setSize(1312,1199)" style="padding:3px 9px;border:1.5px solid var(--border);background:var(--aged);border-radius:12px;font-size:11px;cursor:pointer;font-family:var(--mono)">1312×1199 ✓</button>
+        <button onclick="setSize(2480,3508)" style="padding:3px 9px;border:1.5px solid var(--border);background:var(--aged);border-radius:12px;font-size:11px;cursor:pointer;font-family:var(--mono)">A4 Print</button>
+        <button onclick="setSize(2550,3300)" style="padding:3px 9px;border:1.5px solid var(--border);background:var(--aged);border-radius:12px;font-size:11px;cursor:pointer;font-family:var(--mono)">US Letter</button>
+        <button onclick="setSize(3000,3000)" style="padding:3px 9px;border:1.5px solid var(--border);background:var(--aged);border-radius:12px;font-size:11px;cursor:pointer;font-family:var(--mono)">Square 3K</button>
+      </div>
+    </div>
+
+    <!-- Method -->
+    <div class="panel-section">
+      <h2>3 · Fit Method</h2>
+
+      <div style="margin-bottom:10px;">
+        <select id="fitMethod" style="width:100%;" onchange="updateMethodInfo()">
+          <option value="fit-pad">Fit & Pad White (Recommended)</option>
+          <option value="fit-pad-color">Fit & Pad Custom Color</option>
+          <option value="fill-crop">Fill & Crop Center</option>
+          <option value="fill-crop-smart">Fill & Crop Smart (content-aware)</option>
+          <option value="stretch">Stretch to Fill (may distort)</option>
+        </select>
+      </div>
+
+      <div id="methodInfo" class="info-box">
+        <b>Fit & Pad White:</b> Scales image to fit inside target, preserves all content, fills empty space with white. Perfect for coloring books — no content lost, white areas are colorable.
+      </div>
+
+      <!-- Pad color (only shown for fit-pad-color) -->
+      <div id="padColorRow" style="display:none; margin-top:10px;">
+        <div class="setting-row">
+          <div class="setting-label">Pad Color</div>
+          <div class="color-row">
+            <input type="color" id="padColor" value="#ffffff" oninput="document.getElementById('padHex').textContent=this.value">
+            <span class="color-hex" id="padHex">#ffffff</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Output settings -->
+    <div class="panel-section">
+      <h2>4 · Output</h2>
+
+      <div class="setting-row">
+        <div class="setting-label">Format</div>
+        <select id="outputFormat">
+          <option value="png">PNG (lossless)</option>
+          <option value="jpeg">JPEG (smaller)</option>
+          <option value="webp">WebP (modern)</option>
+        </select>
+      </div>
+
+      <div class="setting-row" id="qualityRow">
+        <div>
+          <div class="setting-label">JPEG Quality</div>
+          <div class="setting-sub">Only applies to JPEG/WebP</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <input type="range" id="quality" min="60" max="100" value="95" style="width:80px;" oninput="document.getElementById('qualityVal').textContent=this.value+'%'">
+          <span style="font-family:var(--mono);font-size:0.8em;min-width:36px;" id="qualityVal">95%</span>
+        </div>
+      </div>
+
+      <div class="toggle-row">
+        <label class="toggle">
+          <input type="checkbox" id="addBorder" checked>
+          <span class="toggle-slider"></span>
+        </label>
+        <span class="toggle-label">Add thin border frame (1px)</span>
+      </div>
+
+      <div class="toggle-row">
+        <label class="toggle">
+          <input type="checkbox" id="sharpening" checked>
+          <span class="toggle-slider"></span>
+        </label>
+        <span class="toggle-label">Sharpen after resize (preserves line art)</span>
+      </div>
+
+      <div class="toggle-row">
+        <label class="toggle">
+          <input type="checkbox" id="autoFilename" checked>
+          <span class="toggle-slider"></span>
+        </label>
+        <span class="toggle-label">Keep original filename</span>
+      </div>
+    </div>
+
+    <!-- Process button -->
+    <div class="panel-section">
+      <button class="btn btn-primary" id="processBtn" onclick="processAll()" disabled>
+        Process All Pages
+      </button>
+      <button class="btn btn-secondary" id="clearBtn" onclick="clearAll()" disabled>
+        Clear & Start Over
+      </button>
+    </div>
+
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="right-panel">
+
+    <div class="preview-area" id="previewArea">
+
+      <!-- Empty state -->
+      <div class="empty-state" id="emptyState">
+        <div class="es-icon">🌧</div>
+        <h3>No pages loaded yet</h3>
+        <p>Drop your coloring book pages into the panel on the left. Preview of before/after normalization will appear here.</p>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+<!-- Modal for full-res preview -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modalTitle">Preview</h3>
+      <button class="modal-close" onclick="document.getElementById('modalOverlay').classList.remove('open')">✕</button>
+    </div>
+    <img id="modalImg" src="" alt="">
+    <div class="modal-info" id="modalInfo"></div>
+    <div style="margin-top:12px;">
+      <button onclick="downloadSingle()" class="btn-download" style="font-size:0.85em;">↓ Download This Page</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- State ----
+let files = [];
+let processed = [];
+let currentModalIdx = -1;
+
+const methodInfoMap = {
+  'fit-pad': '<b>Fit & Pad White:</b> Scales image proportionally to fit inside the target canvas. All content preserved. Empty space filled with white. <i>Best for coloring books</i> — white padding is colorable space.',
+  'fit-pad-color': '<b>Fit & Pad Color:</b> Same as Fit & Pad but fills empty space with a custom color instead of white.',
+  'fill-crop': '<b>Fill & Crop Center:</b> Scales image to fill the entire target canvas, then crops excess from edges equally. No padding, but edge content may be lost. Use when all pages are near the same ratio.',
+  'fill-crop-smart': '<b>Fill & Crop Smart:</b> Scales to fill, then finds the region with the most ink content and centers the crop on that. Better than center crop for pages with important edge details.',
+  'stretch': '<b>⚠ Stretch:</b> Directly stretches to target dimensions. <i>May distort</i> line art. Only use if images are already near the target ratio.'
+};
+
+function updateMethodInfo() {
+  const method = document.getElementById('fitMethod').value;
+  document.getElementById('methodInfo').innerHTML = methodInfoMap[method] || '';
+  document.getElementById('padColorRow').style.display = method === 'fit-pad-color' ? 'block' : 'none';
+}
+
+function setSize(w, h) {
+  document.getElementById('targetW').value = w;
+  document.getElementById('targetH').value = h;
+}
+
+// ---- File handling ----
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  addFiles([...e.dataTransfer.files]);
+});
+fileInput.addEventListener('change', () => addFiles([...fileInput.files]));
+
+function addFiles(newFiles) {
+  const imageFiles = newFiles.filter(f => f.type.startsWith('image/'));
+  files.push(...imageFiles);
+  renderQueue();
+  updateButtons();
+  if (files.length === 1) {
+    loadPreview(files[0], 0);
+  }
+}
+
+function renderQueue() {
+  const list = document.getElementById('queueList');
+  const section = document.getElementById('queueSection');
+  section.style.display = files.length ? 'block' : 'none';
+  document.getElementById('queueCount').textContent = `(${files.length})`;
+  list.innerHTML = files.map((f, i) => `
+    <div class="queue-item ${processed[i] ? 'processed' : ''}" id="qi-${i}">
+      <span class="qi-status">${processed[i] ? '✓' : '·'}</span>
+      <span class="qi-name">${f.name}</span>
+      <span class="qi-size">${formatSize(f.size)}</span>
+    </div>
+  `).join('');
+}
+
+function formatSize(bytes) {
+  if (bytes > 1048576) return (bytes/1048576).toFixed(1) + 'MB';
+  return (bytes/1024).toFixed(0) + 'KB';
+}
+
+function updateButtons() {
+  document.getElementById('processBtn').disabled = files.length === 0;
+  document.getElementById('clearBtn').disabled = files.length === 0;
+}
+
+// ---- Preview single file ----
+function loadPreview(file, idx) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      const targetW = parseInt(document.getElementById('targetW').value);
+      const targetH = parseInt(document.getElementById('targetH').value);
+
+      // Clear preview
+      const area = document.getElementById('previewArea');
+      document.getElementById('emptyState').style.display = 'none';
+
+      // Remove old preview if exists
+      const old = document.getElementById('livePreview');
+      if (old) old.remove();
+
+      const wrap = document.createElement('div');
+      wrap.id = 'livePreview';
+
+      // Stats strip
+      const stats = document.createElement('div');
+      stats.className = 'stats-strip';
+      const sizeMatch = img.width === targetW && img.height === targetH;
+      const ratio = (img.width/img.height).toFixed(3);
+      const targetRatio = (targetW/targetH).toFixed(3);
+      const ratioDiff = Math.abs(ratio - targetRatio);
+      stats.innerHTML = `
+        <span class="stat-badge sb-neutral">Original: ${img.width}×${img.height}</span>
+        <span class="stat-badge sb-neutral">Target: ${targetW}×${targetH}</span>
+        <span class="stat-badge ${ratioDiff < 0.01 ? 'sb-ok' : 'sb-warn'}">Ratio diff: ${(ratioDiff*100).toFixed(1)}% ${ratioDiff < 0.01 ? '✓' : '⚠'}</span>
+        <span class="stat-badge ${sizeMatch ? 'sb-ok' : 'sb-warn'}">${sizeMatch ? '✓ Already standard' : '⚠ Needs resize'}</span>
+      `;
+      wrap.appendChild(stats);
+
+      // Preview grid
+      const grid = document.createElement('div');
+      grid.className = 'preview-grid';
+
+      // Original canvas
+      const origCard = makePreviewCard('Original', img.width, img.height);
+      const origCtx = origCard.canvas.getContext('2d');
+      origCard.canvas.width = img.width;
+      origCard.canvas.height = img.height;
+      origCtx.drawImage(img, 0, 0);
+
+      // Processed canvas
+      const procCard = makePreviewCard('After Normalization', targetW, targetH);
+      renderNormalized(img, procCard.canvas, targetW, targetH);
+
+      grid.appendChild(origCard.card);
+      grid.appendChild(procCard.card);
+      wrap.appendChild(grid);
+
+      area.appendChild(wrap);
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function makePreviewCard(title, w, h) {
+  const card = document.createElement('div');
+  card.className = 'preview-card';
+
+  const hdr = document.createElement('div');
+  hdr.className = 'preview-card-header';
+  hdr.innerHTML = `<span class="pch-title">${title}</span><span class="pch-size">${w}×${h}</span>`;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'preview-canvas-wrap';
+  const canvas = document.createElement('canvas');
+  wrap.appendChild(canvas);
+
+  card.appendChild(hdr);
+  card.appendChild(wrap);
+
+  return { card, canvas };
+}
+
+function renderNormalized(img, canvas, targetW, targetH) {
+  canvas.width = targetW;
+  canvas.height = targetH;
+  const ctx = canvas.getContext('2d');
+
+  const method = document.getElementById('fitMethod').value;
+  const padColor = document.getElementById('padColor').value;
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, targetW, targetH);
+
+  if (method === 'stretch') {
+    ctx.drawImage(img, 0, 0, targetW, targetH);
+    return;
+  }
+
+  if (method === 'fit-pad' || method === 'fit-pad-color') {
+    const scale = Math.min(targetW / img.width, targetH / img.height);
+    const sw = Math.round(img.width * scale);
+    const sh = Math.round(img.height * scale);
+    const ox = Math.round((targetW - sw) / 2);
+    const oy = Math.round((targetH - sh) / 2);
+
+    if (method === 'fit-pad-color') {
+      ctx.fillStyle = padColor;
+      ctx.fillRect(0, 0, targetW, targetH);
+    }
+
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, ox, oy, sw, sh);
+  }
+
+  if (method === 'fill-crop' || method === 'fill-crop-smart') {
+    const scale = Math.max(targetW / img.width, targetH / img.height);
+    const sw = Math.round(img.width * scale);
+    const sh = Math.round(img.height * scale);
+
+    let ox, oy;
+    if (method === 'fill-crop') {
+      ox = Math.round((targetW - sw) / 2);
+      oy = Math.round((targetH - sh) / 2);
+    } else {
+      // Smart: for coloring book, center crop is usually fine
+      // but if portrait->landscape, favor top portion (title/main content)
+      ox = Math.round((targetW - sw) / 2);
+      oy = Math.round((targetH - sh) * 0.4); // slightly favor top
+    }
+
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, ox, oy, sw, sh);
+  }
+
+  // Sharpening (unsharp mask simulation via compositing)
+  if (document.getElementById('sharpening').checked) {
+    applySharpening(ctx, canvas.width, canvas.height);
+  }
+
+  // Border
+  if (document.getElementById('addBorder').checked) {
+    ctx.strokeStyle = '#e8e0d0';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0.5, 0.5, targetW - 1, targetH - 1);
+  }
+}
+
+function applySharpening(ctx, w, h) {
+  // Lightweight sharpening: high-pass overlay
+  const imgData = ctx.getImageData(0, 0, w, h);
+  const data = imgData.data;
+  const orig = new Uint8ClampedArray(data);
+
+  // Simple convolution: unsharp mask kernel approximation
+  // For coloring book line art (black lines on white) this is critical
+  const kernel = [-0, -0.5, -0, -0.5, 3, -0.5, -0, -0.5, -0];
+
+  const result = new Uint8ClampedArray(data.length);
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const i = (y * w + x) * 4;
+      for (let c = 0; c < 3; c++) {
+        let val = 0;
+        let ki = 0;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const ni = ((y + dy) * w + (x + dx)) * 4 + c;
+            val += orig[ni] * kernel[ki++];
+          }
+        }
+        result[i + c] = Math.max(0, Math.min(255, val));
+      }
+      result[i + 3] = orig[i + 3];
+    }
+  }
+
+  // Blend: 60% sharpened, 40% original for subtle effect
+  for (let i = 0; i < data.length; i += 4) {
+    for (let c = 0; c < 3; c++) {
+      data[i + c] = Math.max(0, Math.min(255,
+        orig[i + c] * 0.5 + result[i + c] * 0.5
+      ));
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+}
+
+// ---- Process all ----
+async function processAll() {
+  if (!files.length) return;
+
+  const btn = document.getElementById('processBtn');
+  btn.disabled = true;
+  btn.textContent = 'Processing...';
+
+  processed = new Array(files.length).fill(false);
+  const results = [];
+
+  const targetW = parseInt(document.getElementById('targetW').value);
+  const targetH = parseInt(document.getElementById('targetH').value);
+  const format = document.getElementById('outputFormat').value;
+  const quality = parseInt(document.getElementById('quality').value) / 100;
+
+  const progressWrap = document.getElementById('progressWrap');
+  const progressFill = document.getElementById('progressFill');
+  const progressText = document.getElementById('progressText');
+  progressWrap.style.display = 'block';
+
+  for (let i = 0; i < files.length; i++) {
+    progressFill.style.width = `${(i / files.length) * 100}%`;
+    progressText.textContent = `Processing ${i + 1} of ${files.length}: ${files[i].name}`;
+
+    const dataUrl = await new Promise(res => {
+      const reader = new FileReader();
+      reader.onload = e => res(e.target.result);
+      reader.readAsDataURL(files[i]);
+    });
+
+    const result = await new Promise(res => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        renderNormalized(img, canvas, targetW, targetH);
+        const mimeType = format === 'png' ? 'image/png' : format === 'jpeg' ? 'image/jpeg' : 'image/webp';
+        const q = format === 'png' ? undefined : quality;
+        const url = canvas.toDataURL(mimeType, q);
+        const name = getOutputName(files[i].name, format);
+        res({ url, name, origW: img.width, origH: img.height });
+      };
+      img.src = dataUrl;
+    });
+
+    results.push(result);
+    processed[i] = true;
+
+    // Update queue item
+    const qi = document.getElementById(`qi-${i}`);
+    if (qi) {
+      qi.classList.add('processed');
+      qi.querySelector('.qi-status').textContent = '✓';
+    }
+
+    // Small yield to keep UI responsive
+    await new Promise(r => setTimeout(r, 10));
+  }
+
+  progressFill.style.width = '100%';
+  progressText.textContent = `Done! ${files.length} pages processed.`;
+
+  btn.disabled = false;
+  btn.textContent = 'Process All Pages';
+
+  renderResults(results, targetW, targetH);
+}
+
+function getOutputName(original, format) {
+  const keepName = document.getElementById('autoFilename').checked;
+  const base = original.replace(/\.[^.]+$/, '');
+  const ext = format === 'png' ? '.png' : format === 'jpeg' ? '.jpg' : '.webp';
+  return keepName ? base + ext : base + '_normalized' + ext;
+}
+
+// ---- Render results ----
+let resultBlobs = [];
+
+function renderResults(results, targetW, targetH) {
+  resultBlobs = results;
+
+  const area = document.getElementById('previewArea');
+
+  // Remove old results
+  const old = document.getElementById('resultsSection');
+  if (old) old.remove();
+
+  const section = document.createElement('div');
+  section.className = 'results-section';
+  section.id = 'resultsSection';
+
+  const header = document.createElement('div');
+  header.className = 'results-header';
+  header.innerHTML = `
+    <h3>✓ ${results.length} Pages Normalized → ${targetW}×${targetH}</h3>
+    <span style="font-family:var(--mono);font-size:0.75em;opacity:0.6;">click thumbnail to preview · download below</span>
+  `;
+  section.appendChild(header);
+
+  const grid = document.createElement('div');
+  grid.className = 'results-grid';
+
+  results.forEach((r, i) => {
+    const card = document.createElement('div');
+    card.className = 'result-thumb-card';
+    card.onclick = () => openModal(i);
+    card.innerHTML = `
+      <img src="${r.url}" alt="${r.name}" loading="lazy">
+      <div class="rtc-name">${r.name}</div>
+      <div class="rtc-size">${r.origW}×${r.origH} → ${targetW}×${targetH}</div>
+    `;
+    grid.appendChild(card);
+  });
+
+  section.appendChild(grid);
+
+  const dlWrap = document.createElement('div');
+  dlWrap.className = 'download-all-wrap';
+  dlWrap.innerHTML = `
+    <button class="btn-download" id="zipBtn" onclick="downloadZip()">⬇ Download All as ZIP (${results.length} files)</button>
+    <button class="btn-download" onclick="downloadAll()" style="background:#5a4a7c;">↓ Download Individually</button>
+    <span class="dl-count" id="zipStatus">One ZIP · all pages inside</span>
+  `;
+  section.appendChild(dlWrap);
+
+  area.appendChild(section);
+  section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ---- Modal ----
+function openModal(idx) {
+  currentModalIdx = idx;
+  const r = resultBlobs[idx];
+  document.getElementById('modalTitle').textContent = r.name;
+  document.getElementById('modalImg').src = r.url;
+  document.getElementById('modalInfo').innerHTML = `
+    <span>Original: ${r.origW}×${r.origH}</span>
+    <span>→</span>
+    <span>Output: ${document.getElementById('targetW').value}×${document.getElementById('targetH').value}</span>
+    <span>|</span>
+    <span>${r.name}</span>
+  `;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function closeModal(e) {
+  if (e.target.id === 'modalOverlay') {
+    document.getElementById('modalOverlay').classList.remove('open');
+  }
+}
+
+function downloadSingle() {
+  if (currentModalIdx < 0) return;
+  const r = resultBlobs[currentModalIdx];
+  const a = document.createElement('a');
+  a.href = r.url;
+  a.download = r.name;
+  a.click();
+}
+
+// ---- Download ZIP (bulk) ----
+async function downloadZip() {
+  if (!resultBlobs.length) return;
+  const zipBtn = document.getElementById('zipBtn');
+  const zipStatus = document.getElementById('zipStatus');
+  zipBtn.disabled = true;
+  zipBtn.textContent = 'Building ZIP...';
+
+  const zip = new JSZip();
+  const folder = zip.folder('normalized_pages');
+
+  for (let i = 0; i < resultBlobs.length; i++) {
+    const r = resultBlobs[i];
+    if (zipStatus) zipStatus.textContent = `Adding ${i+1}/${resultBlobs.length}: ${r.name}`;
+    // Convert data URL to base64 blob
+    const base64 = r.url.split(',')[1];
+    folder.file(r.name, base64, { base64: true });
+  }
+
+  if (zipStatus) zipStatus.textContent = 'Compressing...';
+  const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+  const targetW = document.getElementById('targetW').value;
+  const targetH = document.getElementById('targetH').value;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `rainy_attic_normalized_${targetW}x${targetH}.zip`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  zipBtn.disabled = false;
+  zipBtn.textContent = `⬇ Download All as ZIP (${resultBlobs.length} files)`;
+  if (zipStatus) zipStatus.textContent = `✓ ZIP downloaded — ${resultBlobs.length} files inside`;
+}
+
+// ---- Download all individually ----
+async function downloadAll() {
+  if (!resultBlobs.length) return;
+  for (let i = 0; i < resultBlobs.length; i++) {
+    const r = resultBlobs[i];
+    await new Promise(res => setTimeout(res, i === 0 ? 0 : 250));
+    const a = document.createElement('a');
+    a.href = r.url;
+    a.download = r.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+}
+
+// ---- Clear ----
+function clearAll() {
+  files = [];
+  processed = [];
+  resultBlobs = [];
+  document.getElementById('fileInput').value = '';
+  renderQueue();
+  updateButtons();
+
+  const area = document.getElementById('previewArea');
+  const lp = document.getElementById('livePreview');
+  if (lp) lp.remove();
+  const rs = document.getElementById('resultsSection');
+  if (rs) rs.remove();
+  document.getElementById('emptyState').style.display = 'flex';
+  document.getElementById('progressWrap').style.display = 'none';
+}
+
+// ---- Live preview on settings change ----
+['targetW','targetH','fitMethod','padColor','addBorder','sharpening'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', () => {
+    if (files.length > 0) loadPreview(files[0], 0);
+  });
+});
+
+document.getElementById('outputFormat').addEventListener('change', () => {
+  const fmt = document.getElementById('outputFormat').value;
+  document.getElementById('qualityRow').style.opacity = fmt === 'png' ? '0.4' : '1';
+});
+</script>
+
+</body>
+</html>
